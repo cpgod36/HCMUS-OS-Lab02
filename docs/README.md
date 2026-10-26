@@ -2,7 +2,7 @@
 
 | File | Nguồn | Nội dung |
 |---|---|---|
-| [CQ_Lab02.md](CQ_Lab02.md) | `Lab2_OS_System_Call.docx` | **Đề bài**: quy định nộp, 3 bài trace, sysinfo, ptree/pstree |
+| [CQ_Lab02.md](CQ_Lab02.md) | [Lab2_OS_System_Call.docx](Lab2_OS_System_Call.docx) (bản gốc) | **Đề bài**: quy định nộp, 3 bài trace, sysinfo, ptree/pstree |
 | [HuongDan_XV6.md](HuongDan_XV6.md) | `HƯỚNG DẪN THỰC HÀNH XV6.pdf` + `fix.md` | Cài WSL/xv6, fix QEMU, **mục 4: các bước thêm system call**, **mục 5: `struct proc` và trạng thái tiến trình**, fork |
 | [xv6-book/](xv6-book/) | `book-xv6-riscv-rev4.pdf` | Sách xv6 tách theo chương (text thô, mất hình) |
 
