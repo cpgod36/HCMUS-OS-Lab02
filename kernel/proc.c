@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "ptree.h"
 
 struct cpu cpus[NCPU];
 
@@ -697,3 +698,51 @@ procdump(void)
     printf("\n");
   }
 }
+
+// Collect information about active processes into a user buffer of struct ptreeinfo.
+// Returns number of processes copied, or -1 on error.
+int
+proc_ptree(uint64 dstva, int max)
+{
+  struct proc *p;
+  struct proc *cur = myproc();
+  struct ptreeinfo info;
+  int count = 0;
+
+  if(max <= 0)
+    return -1;
+
+  for(p = proc; p < &proc[NPROC]; p++){
+    acquire(&wait_lock);
+    acquire(&p->lock);
+
+    if(p->state == UNUSED){
+      release(&p->lock);
+      release(&wait_lock);
+      continue;
+    }
+
+    info.pid = p->pid;
+    if(p->parent)
+      info.ppid = p->parent->pid;
+    else
+      info.ppid = 0;
+    info.state = p->state;
+    info.memsize = p->sz;
+    safestrcpy(info.name, p->name, sizeof(info.name));
+
+    release(&p->lock);
+    release(&wait_lock);
+
+    if(copyout(cur->pagetable, dstva + (uint64)count * sizeof(struct ptreeinfo),
+               (char *)&info, sizeof(info)) < 0)
+      return -1;
+
+    count++;
+    if(count == max)
+      break;
+  }
+
+  return count;
+}
+
