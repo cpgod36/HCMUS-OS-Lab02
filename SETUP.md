@@ -144,7 +144,7 @@ Conflict khi pull: **giữ tất cả các dòng của cả hai bên**, sắp l�
 
 - `proc[NPROC]` (`NPROC = 64`) là bảng tiến trình toàn cục trong `proc.c`; duyệt: `for(p = proc; p < &proc[NPROC]; p++)`.
 - `enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE }` → giá trị số 0..5.
-- **Khoá:** `state`, `pid`, `killed`... đọc khi giữ `p->lock`; `p->parent` đọc khi giữ `wait_lock` (biến `static` trong `proc.c`, nên hàm cần nó phải viết trong `proc.c`). Thứ tự khoá của xv6: `wait_lock` trước, `p->lock` sau. `p->sz`, `p->name` là dữ liệu riêng của tiến trình.
+- **Khoá:** `state`, `pid`, `killed`... đọc khi giữ `p->lock`; `p->parent` đọc khi giữ `wait_lock` (biến `static` trong `proc.c`, nên hàm cần nó phải viết trong `proc.c`). Thứ tự khoá của xv6: `wait_lock` trước, `p->lock` sau. `p->sz`, `p->name` là dữ liệu riêng của tiến trình: `exec`/`sbrk` đổi chúng mà không giữ `p->lock`, nên tiến trình khác đọc được chỉ là giá trị gần đúng.
 - Field mới thêm vào `struct proc` phải được khởi tạo trong `allocproc()`/`freeproc()` và (nếu cần kế thừa) chép trong `fork()`.
 - `printf` trong kernel hỗ trợ `%d %ld %x %p %s`, không có width/padding.
 
@@ -173,13 +173,15 @@ Như LAB1: chỉ có hàm trong `user/user.h`. `printf` chỉ hỗ trợ `%d %ld
 | ptree | `state`, `memsize` | `state` = giá trị số của `enum procstate`; `memsize` = `p->sz` |
 | ptree | Đối số lỗi | `max <= 0` → `-1`; `copyout` thất bại (buf không hợp lệ) → `-1` |
 | ptree | Số tiến trình > `max` | Ghi `max` tiến trình đầu tiên (theo thứ tự trong `proc[]`), trả về `max`, không coi là lỗi |
-| ptree | Cách ghi | Đọc từng proc vào **một** biến `struct ptreeinfo` cục bộ (giữ khoá), nhả `p->lock` rồi `copyout` vào `buf + n*sizeof(struct ptreeinfo)` |
+| ptree | Cách ghi | Cấp một trang bằng `kalloc()` (64 × 40 = 2560 byte, vừa 1 trang; thất bại → `-1`) và `memset` về 0 vì `kalloc` không xoá bộ nhớ. Giữ `wait_lock` suốt lần duyệt, `p->lock` theo từng proc, ghi vào trang đó. Nhả khoá, `copyout` **một lần**, rồi `kfree` |
+| ptree | Tiến trình đang fork dở | Bỏ qua proc có `state == USED && parent == 0`: `fork()` gán `parent` sau khi nhả `np->lock`, nên `parent == 0` không phải lúc nào cũng là init |
 | pstree | Format | `<2 khoảng trắng × độ sâu><pid> <name> state=<n> mem=<bytes>`, đúng output mẫu |
 | pstree | Gốc cây, thứ tự con | Gốc = tiến trình có `ppid` không xuất hiện trong danh sách (thường chỉ có init). Con in theo thứ tự xuất hiện trong mảng |
-| pstree | Buffer | Gọi `ptree(buf, NPROC)` với mảng `NPROC` phần tử (`#include "kernel/param.h"`) |
+| pstree | Buffer | Gọi `ptree(buf, NPROC)` với mảng `static` `NPROC` phần tử (`#include "kernel/param.h"`) |
+| pstree | Duyệt cây | User stack chỉ có 1 trang: không đệ quy theo độ sâu tiến trình, duyệt bằng vòng lặp với mảng `static` |
 | chung | Lỗi tham số chương trình user | In usage ra stderr (`fprintf(2, ...)`) và `exit(1)` |
 
-**Test cho ptree (Nhật):** đề yêu cầu xử lý lỗi và chấm "mức độ kiểm tra kỹ lưỡng" → viết thêm `user/ptreetest.c` kiểm tra: `max <= 0`, buf không hợp lệ (ví dụ `(struct ptreeinfo *)0xeaeb0b5b00002f5e` như `sysinfotest`), `max` nhỏ hơn số tiến trình, và cây nhiều tầng (fork vài cấp rồi gọi `pstree`/`ptree`).
+**Test cho ptree (Nhật):** đề yêu cầu xử lý lỗi và chấm "mức độ kiểm tra kỹ lưỡng" → viết thêm `user/ptreetest.c` kiểm tra: `max <= 0`, buf không hợp lệ (ví dụ `(struct ptreeinfo *)0xeaeb0b5b00002f5e` như `sysinfotest`), `max` nhỏ hơn số tiến trình (đặt giá trị canh ở phần tử ngay sau `max` để phát hiện ghi quá), padding và phần đuôi `name` bằng 0, và cây nhiều tầng (fork vài cấp rồi gọi `pstree`/`ptree`, gồm cả chuỗi sâu). Buffer trong test cũng dùng `static`.
 
 ---
 
