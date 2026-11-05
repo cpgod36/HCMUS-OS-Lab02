@@ -699,6 +699,23 @@ procdump(void)
   }
 }
 
+// Count the number of active processes (state != UNUSED).
+uint64
+count_nproc(void)
+{
+  struct proc *p;
+  uint64 count = 0;
+
+  for(p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p->state != UNUSED) {
+      count++;
+    }
+    release(&p->lock);
+  }
+  return count;
+}
+
 // Collect information about active processes into a user buffer of struct ptreeinfo.
 // Returns number of processes copied, or -1 on error.
 int
@@ -757,4 +774,3 @@ proc_ptree(uint64 dstva, int max)
   kfree((void *)kbuf);
   return count;
 }
-

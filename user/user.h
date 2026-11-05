@@ -23,6 +23,8 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 int trace(int);
+struct sysinfo;
+int sysinfo(struct sysinfo *);
 struct ptreeinfo;
 int ptree(struct ptreeinfo*, int);
 

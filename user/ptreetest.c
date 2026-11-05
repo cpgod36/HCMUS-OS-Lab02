@@ -3,7 +3,7 @@
 #include "kernel/ptree.h"
 #include "user/user.h"
 
-// Toàn bộ buffer test dùng static để bảo toàn user stack (4 KB)
+// Keep all test buffers static to preserve the 4 KB user stack
 static struct ptreeinfo full_buf[NPROC];
 static struct ptreeinfo small_buf[4];
 static struct ptreeinfo test_buf[NPROC];
@@ -27,13 +27,13 @@ test_invalid_args(void)
     exit(1);
   }
 
-  // Địa chỉ user unmapped không hợp lệ
+  // Invalid unmapped user pointer
   if (ptree((struct ptreeinfo *)0xeaeb0b5b00002f5e, 10) != -1) {
     printf("FAIL: ptree with invalid bad pointer should return -1\n");
     exit(1);
   }
 
-  // Con trỏ 0 (vùng nhớ text chỉ đọc trong xv6)
+  // Null pointer
   if (ptree((struct ptreeinfo *)0, 10) != -1) {
     printf("FAIL: ptree((struct ptreeinfo *)0, 10) should return -1\n");
     exit(1);
