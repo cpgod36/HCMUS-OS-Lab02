@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "ptree.h"
 
 struct cpu cpus[NCPU];
 
@@ -712,5 +713,64 @@ count_nproc(void)
     }
     release(&p->lock);
   }
+  return count;
+}
+
+// Collect information about active processes into a user buffer of struct ptreeinfo.
+// Returns number of processes copied, or -1 on error.
+int
+proc_ptree(uint64 dstva, int max)
+{
+  struct proc *p;
+  struct proc *cur = myproc();
+  struct ptreeinfo *kbuf;
+  int count = 0;
+
+  if(max <= 0)
+    return -1;
+
+  kbuf = (struct ptreeinfo *)kalloc();
+  if(kbuf == 0)
+    return -1;
+
+  memset(kbuf, 0, PGSIZE);
+
+  acquire(&wait_lock);
+
+  for(p = proc; p < &proc[NPROC]; p++){
+    acquire(&p->lock);
+
+    // Skip unused processes or half-forked processes (parent not set yet)
+    if(p->state == UNUSED || (p->state == USED && p->parent == 0)){
+      release(&p->lock);
+      continue;
+    }
+
+    kbuf[count].pid = p->pid;
+    if(p->parent)
+      kbuf[count].ppid = p->parent->pid;
+    else
+      kbuf[count].ppid = 0; // init
+    kbuf[count].state = p->state;
+    kbuf[count].memsize = p->sz;
+    safestrcpy(kbuf[count].name, p->name, sizeof(kbuf[count].name));
+
+    release(&p->lock);
+
+    count++;
+    if(count == max)
+      break;
+  }
+
+  release(&wait_lock);
+
+  if(count > 0){
+    if(copyout(cur->pagetable, dstva, (char *)kbuf, (uint64)count * sizeof(struct ptreeinfo)) < 0){
+      kfree((void *)kbuf);
+      return -1;
+    }
+  }
+
+  kfree((void *)kbuf);
   return count;
 }

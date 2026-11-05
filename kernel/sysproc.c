@@ -120,3 +120,15 @@ sys_sysinfo(void)
     return -1;
   return 0;
 }
+
+uint64
+sys_ptree(void)
+{
+  uint64 addr;
+  int max;
+
+  argaddr(0, &addr);
+  argint(1, &max);
+
+  return proc_ptree(addr, max);
+}
