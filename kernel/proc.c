@@ -706,43 +706,55 @@ proc_ptree(uint64 dstva, int max)
 {
   struct proc *p;
   struct proc *cur = myproc();
-  struct ptreeinfo info;
+  struct ptreeinfo *kbuf;
   int count = 0;
 
   if(max <= 0)
     return -1;
 
+  kbuf = (struct ptreeinfo *)kalloc();
+  if(kbuf == 0)
+    return -1;
+
+  memset(kbuf, 0, PGSIZE);
+
+  acquire(&wait_lock);
+
   for(p = proc; p < &proc[NPROC]; p++){
-    acquire(&wait_lock);
     acquire(&p->lock);
 
-    if(p->state == UNUSED){
+    // Skip unused processes or half-forked processes (parent not set yet)
+    if(p->state == UNUSED || (p->state == USED && p->parent == 0)){
       release(&p->lock);
-      release(&wait_lock);
       continue;
     }
 
-    info.pid = p->pid;
+    kbuf[count].pid = p->pid;
     if(p->parent)
-      info.ppid = p->parent->pid;
+      kbuf[count].ppid = p->parent->pid;
     else
-      info.ppid = 0;
-    info.state = p->state;
-    info.memsize = p->sz;
-    safestrcpy(info.name, p->name, sizeof(info.name));
+      kbuf[count].ppid = 0; // init
+    kbuf[count].state = p->state;
+    kbuf[count].memsize = p->sz;
+    safestrcpy(kbuf[count].name, p->name, sizeof(kbuf[count].name));
 
     release(&p->lock);
-    release(&wait_lock);
-
-    if(copyout(cur->pagetable, dstva + (uint64)count * sizeof(struct ptreeinfo),
-               (char *)&info, sizeof(info)) < 0)
-      return -1;
 
     count++;
     if(count == max)
       break;
   }
 
+  release(&wait_lock);
+
+  if(count > 0){
+    if(copyout(cur->pagetable, dstva, (char *)kbuf, (uint64)count * sizeof(struct ptreeinfo)) < 0){
+      kfree((void *)kbuf);
+      return -1;
+    }
+  }
+
+  kfree((void *)kbuf);
   return count;
 }
 

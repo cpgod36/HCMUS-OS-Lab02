@@ -3,30 +3,16 @@
 #include "kernel/ptree.h"
 #include "user/user.h"
 
+struct stack_item {
+  int index;
+  int depth;
+};
+
+// Static arrays to avoid overflowing the 1-page user stack
 static struct ptreeinfo buf[NPROC];
+static struct stack_item stack[NPROC];
 static int visited[NPROC];
-
-static void
-print_indent(int depth)
-{
-  for (int i = 0; i < depth * 2; i++) {
-    printf(" ");
-  }
-}
-
-static void
-print_subtree(int n, int parent_pid, int depth)
-{
-  for (int i = 0; i < n; i++) {
-    if (buf[i].ppid == parent_pid && !visited[i]) {
-      visited[i] = 1;
-      print_indent(depth);
-      printf("%d %s state=%d mem=%ld\n",
-             buf[i].pid, buf[i].name, buf[i].state, buf[i].memsize);
-      print_subtree(n, buf[i].pid, depth + 1);
-    }
-  }
-}
+static int is_root[NPROC];
 
 int
 main(int argc, char *argv[])
@@ -42,13 +28,8 @@ main(int argc, char *argv[])
     exit(1);
   }
 
-  if (n == 0) {
-    exit(0);
-  }
-
   // Determine root processes.
   // A process is a root if its ppid is not present in the process list.
-  int is_root[NPROC];
   for (int i = 0; i < n; i++) {
     is_root[i] = 1;
     for (int j = 0; j < n; j++) {
@@ -59,25 +40,37 @@ main(int argc, char *argv[])
     }
   }
 
-  memset(visited, 0, sizeof(visited));
+  // Non-recursive DFS using static stack to avoid user stack overflow
+  int top = 0;
 
-  // Print roots first, then their descendant trees
-  for (int i = 0; i < n; i++) {
-    if (is_root[i] && !visited[i]) {
+  // Push roots in reverse order so earlier roots are popped first
+  for (int i = n - 1; i >= 0; i--) {
+    if (is_root[i]) {
       visited[i] = 1;
-      printf("%d %s state=%d mem=%ld\n",
-             buf[i].pid, buf[i].name, buf[i].state, buf[i].memsize);
-      print_subtree(n, buf[i].pid, 1);
+      stack[top].index = i;
+      stack[top].depth = 0;
+      top++;
     }
   }
 
-  // In case any circular or unreachable nodes remain
-  for (int i = 0; i < n; i++) {
-    if (!visited[i]) {
-      visited[i] = 1;
-      printf("%d %s state=%d mem=%ld\n",
-             buf[i].pid, buf[i].name, buf[i].state, buf[i].memsize);
-      print_subtree(n, buf[i].pid, 1);
+  while (top > 0) {
+    top--;
+    int idx = stack[top].index;
+    int depth = stack[top].depth;
+
+    for (int s = 0; s < depth * 2; s++)
+      printf(" ");
+    printf("%d %s state=%d mem=%ld\n",
+           buf[idx].pid, buf[idx].name, buf[idx].state, buf[idx].memsize);
+
+    // Push children in reverse order so earlier children are popped first
+    for (int j = n - 1; j >= 0; j--) {
+      if (buf[j].ppid == buf[idx].pid && !visited[j]) {
+        visited[j] = 1;
+        stack[top].index = j;
+        stack[top].depth = depth + 1;
+        top++;
+      }
     }
   }
 
