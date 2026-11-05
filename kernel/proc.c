@@ -725,9 +725,14 @@ proc_ptree(uint64 dstva, int max)
   struct proc *cur = myproc();
   struct ptreeinfo *kbuf;
   int count = 0;
+  int r;
 
   if(max <= 0)
     return -1;
+
+  // kbuf is a single page: never fill past it, even if NPROC grows.
+  if(max > PGSIZE / sizeof(struct ptreeinfo))
+    max = PGSIZE / sizeof(struct ptreeinfo);
 
   kbuf = (struct ptreeinfo *)kalloc();
   if(kbuf == 0)
@@ -764,13 +769,7 @@ proc_ptree(uint64 dstva, int max)
 
   release(&wait_lock);
 
-  if(count > 0){
-    if(copyout(cur->pagetable, dstva, (char *)kbuf, (uint64)count * sizeof(struct ptreeinfo)) < 0){
-      kfree((void *)kbuf);
-      return -1;
-    }
-  }
-
+  r = copyout(cur->pagetable, dstva, (char *)kbuf, (uint64)count * sizeof(struct ptreeinfo));
   kfree((void *)kbuf);
-  return count;
+  return r < 0 ? -1 : count;
 }
