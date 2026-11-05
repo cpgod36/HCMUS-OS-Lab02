@@ -110,7 +110,9 @@ Quy tắc:
 
 `make grade` **chỉ** có test cho **trace** (6 test). Các test `answers-syscall.txt`, `attack`, `time` là của MIT, **không thuộc đề của lớp → fail là bình thường**.
 - **sysinfo**: grader của bản 2024 không có test, phải tự chạy `sysinfotest` trong QEMU, kỳ vọng `sysinfotest: OK`.
-- **ptree/pstree**: bài của giảng viên, không có test có sẵn. Tự test thủ công (mục 5) và chụp màn hình cho report.
+- **ptree/pstree**: bài của giảng viên, không có test có sẵn. Chạy `ptreetest`, `pstree` trong QEMU (mục 5) và chụp màn hình cho report.
+
+`usertests -q` luôn dừng ở `sbrkmuch: sbrk de-allocation didn't really deallocate`, kể cả trên bản MIT gốc (xem mục 4.5). Đây không phải lỗi của nhóm.
 
 ---
 
@@ -155,6 +157,11 @@ Conflict khi pull: **giữ tất cả các dòng của cả hai bên**, sắp l�
 ### 4.5. Thư viện user — KHÔNG có libc
 
 Như LAB1: chỉ có hàm trong `user/user.h`. `printf` chỉ hỗ trợ `%d %ld %lld %u %lu %x %lx %p %s %%`, **không có `%c`, không có width/padding** (thụt lề phải tự in khoảng trắng). In lỗi ra stderr bằng `fprintf(2, ...)`. Chương trình kết thúc bằng `exit(0)`, không `return` từ `main`.
+
+**Bộ nhớ không được xoá:** trên nhánh lab này, `#ifndef LAB_SYSCALL` trong `kernel/vm.c` và `kernel/kalloc.c` bỏ bước xoá bộ nhớ (phục vụ phần "Attack xv6" của MIT). Vì vậy:
+- Biến `static`/global của chương trình user **không** mặc định bằng 0, phải tự gán lúc chạy.
+- Trang từ `kalloc()` chứa dữ liệu cũ, muốn sạch thì phải `memset`.
+- Test có thể pass nhờ may mắn vì trang vừa cấp phát tình cờ bằng 0. Muốn kiểm tra chắc chắn thì ghi rác vào các trang đã giải phóng trước khi chạy (xem `dirty_free_pages` trong `user/ptreetest.c`).
 
 ---
 
